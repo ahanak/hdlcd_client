@@ -7,7 +7,7 @@ describe 'Correct Parsing of messages' do
   let(:port_status_locked) { [0x10, 0x05].pack('CC') }
 
 
-  it 'should deserialize an empty not reliable data packet' do
+  it 'should deserialize an empty not reliable data packet correctly' do
     packet = HdlcdClient::Packet.deserialize(StringIO.new(empty_data))
     expect(packet).to be_a HdlcdClient::DataPacket
     expect(packet.reliable?).to be false
@@ -15,7 +15,7 @@ describe 'Correct Parsing of messages' do
     expect(packet.contains_data?).to be false
   end
 
-  it 'should deserialize a reliable data packet' do
+  it 'should deserialize a reliable data packet correctly' do
     packet = HdlcdClient::Packet.deserialize(StringIO.new(reliable_data))
     expect(packet).to be_a HdlcdClient::DataPacket
     expect(packet.reliable?).to be true
@@ -23,7 +23,7 @@ describe 'Correct Parsing of messages' do
     expect(packet.contains_data?).to be true
   end
 
-  it 'should deserialize a port status control packet' do
+  it 'should deserialize a port status control packet correctly' do
     packet = HdlcdClient::Packet.deserialize(StringIO.new(port_status_locked))
     expect(packet).to be_a HdlcdClient::ControlPacket
     expect(packet.reliable?).to be false
