@@ -23,6 +23,8 @@ Or install it yourself as:
 
 TODO: Write usage instructions here
 
+See {HdlcdClient} module description.
+
 ## Running Tests
 
     $ rake spec

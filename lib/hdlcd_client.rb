@@ -8,14 +8,15 @@ require "socket"
 #
 # If you need more control for special use cases, the other classes in the {HdlcdClient} module can be used directly.
 #
-# @example for reading the payload delivered through hdlc
+# @example reading the payload delivered through hdlc
 #   HdlcdClient.open('/dev/ttyUSB0') do |dev|
 #     dev.each_packet do |packet|
-#     puts packet # human friendly output
-#     payload = packet.payload # do something with it
+#       puts packet # human friendly output
+#       payload = packet.payload # do something with it
+#     end
 #   end
 #
-# @example for locking, releasing, and query port status
+# @example locking, releasing, and query port status
 #   HdlcdClient.open('/dev/ttyUSB0') do |dev|
 #     dev.lock
 #     sleep 10 # do something different with the port
@@ -24,7 +25,7 @@ require "socket"
 #     puts dev.port_status.inspect
 #   end
 #
-# @example to monitor the port status
+# @example monitor the port status
 #   HdlcdClient.open('/dev/ttyUSB0') do |dev|
 #     dev.port_status_changed do |new_port_status|
 #       puts new_port_status.inspect
