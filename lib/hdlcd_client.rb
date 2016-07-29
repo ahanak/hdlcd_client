@@ -40,7 +40,24 @@ module HdlcdClient
   # The host to connect to if none is given.
   DEFAULT_HOST = 'localhost'
 
+  # Create a new {HdlcDevice} and pass it to the given block.
+  #
+  # Using this method should be preferred compared to the usage of {HdlcDevice#initialize},
+  # because all ressources will be cleaned up properly after exiting the block even if an exception occures.
+  #
+  # @example open a connection
+  #   HdlcdClient.open('/dev/ttyUSB0') do |device|
+  #     # Do something with device
+  #     raise 'An error' # even this is save
+  #   end
+  #   # all connections are closed now
+  #
+  # @param [String] serial_port_name is the device path under linux or the name of the COM-Port under windows
+  # @param [String] host is the hostname of the computer where the HDLCd runs on.
+  # @param [Fixnum] tcp_port is the TCP port number used by the HDLCd server.
+  # @yield [hdlc_device] Passs the device to the block.
   def self.open(serial_port_name, host = DEFAULT_HOST, tcp_port = DEFAULT_PORT, options = {})
+    #TODO: what about serial_port_name on windows?
     d = HdlcDevice.new(serial_port_name, host, tcp_port, options)
     begin
       yield(d)
@@ -53,7 +70,13 @@ module HdlcdClient
   # The class might open multiple TCP connections to the HDLCd for data and control message exchange.
   class HdlcDevice
 
+    # Create a new HdlcDevice object which can be used to interact with an device speaking HDLC.
+    # @param [String] serial_port_name is the device path under linux or the name of the COM-Port under windows
+    # @param [String] host is the hostname of the computer where the HDLCd runs on.
+    # @param [Fixnum] tcp_port is the TCP port number used by the HDLCd server.
+    # @return [HdlcDevice] the created device.
     def initialize(serial_port_name, host = DEFAULT_HOST, tcp_port = DEFAULT_PORT, options)
+      #TODO: options parameter
       @host = host
       @tcp_port = tcp_port
       @serial_port_name = serial_port_name
@@ -61,26 +84,44 @@ module HdlcdClient
       @port_status_lock = Mutex.new
     end
 
+    # Lock the serial port in order to use it directly through the operating system methods.
+    # This signals towards the HDLCd, that you want to use the port exclusively.
+    # This call results in HDLCd closing the device.
+    # No messages will be transferred anymore to any client listening to that serial port via HDLCd.
     def lock
       control_connection.write ControlPacket.new(:lock).serialize
     end
 
+    # This signals, that the port is not longer exclusively reqired and can be opened by the HDLCd again.
+    # After a release, the delivery of the HDLC payloads will continue as normal.
     def release
       control_connection.write ControlPacket.new(:release).serialize
     end
 
+    # This method can be used to subscribe to data packets delivered by the HDLCd.
+    # Use this method if you want to receive the data sent over HDLC.
+    # @yield [packet] Passes packages containing data ({DataPacket}) to the block as they arrive.
     def each_data_packet
       DataPacket.each(data_connection) {|packet| yield(packet)}
     end
 
+    # This method can be usded to descripbe to control packets being delivered by the HDLCd
+    # via secondary control connection.
+    # @yield [packet] Passes packages containing control information ({ControlPacket}) to the block as they arrive.
     def each_control_packet
       ControlPacket.each(control_connection(true)) {|packet| yield(packet)}
     end
 
+    # This method passes all packets (data and control) to the block, that arrive
+    # at the data connection. The control connection is not evaluated here.
+    # @yield [packet] Passes packages containing control information or data (any subclass of {Packet}) to the block as they arrive.
     def each_packet
       Packet.each(data_connection) {|packet| yield(packet)}
     end
 
+    # This method can be used to subscribe to port status changes.
+    # The method uses the control connection to detect port changes and calls the block each time the status changes.
+    # @yield [port_state] Pases the new port state as {Hash} to the block when it changes.
     def port_status_changed
       cur_port_status = {}
       each_control_packet do |packet|
@@ -95,6 +136,8 @@ module HdlcdClient
       end
     end
 
+    # This is the polling alternative to {#port_status_changed}.
+    # @return [Hash] the last known port status.
     def port_status
       status = nil
       @port_status_lock.synchronize {
@@ -103,6 +146,7 @@ module HdlcdClient
       return status
     end
 
+    # Closes all TCP connections and stop worker thread()s).
     def close
       @data_socket.close if @data_socket
       @control_socket.close if @control_socket
@@ -112,6 +156,8 @@ module HdlcdClient
 
     private
 
+    # Creates a new data connection or returns the already opened.
+    # @return [TCPSocket] an already opened and initialized tcp socket that is used to deliver data.
     def data_connection
       if @data_socket.nil?
         @data_socket = TCPSocket.new @host, @tcp_port
@@ -121,6 +167,9 @@ module HdlcdClient
       return @data_socket
     end
 
+    # Creates a new control connection or returns the already opened.
+    # @param [true, false] read is true if the connection should be used to read control data.
+    # @return [TCPSocket] an already opened and initialized tcp socket that is used to deliver control messages.
     def control_connection(read = false)
       if @control_socket.nil?
         @control_socket = TCPSocket.new @host, @tcp_port
@@ -139,6 +188,7 @@ module HdlcdClient
       return @control_socket
     end
 
+    # Starts a background job, which reads all incoming data from the control socket (important).
     def parse_port_status
       @thread = Thread.new(@control_socket) do |socket|
         ControlPacket.each(socket) do |packet|
@@ -152,6 +202,8 @@ module HdlcdClient
     end
   end
 
+  # This class represents the session header message
+  # which must be sent only once directly after the TCP connection is initialized.
   class SessionHeaderMessage
     TYPE_OF_DATA = {
         :payload => 0,
@@ -161,21 +213,35 @@ module HdlcdClient
         :hdlc_dissected => 4
     }.freeze
 
+    # The protocol version we speak
     VERSION = 0
 
+    # The options, that are taken as defaults.
+    # @see #initialize
+    DEFAULT_OPTIONS = {
+        :version => VERSION,
+        :type_of_data => :payload,
+        :invalids => false,
+        :tx_data => false,
+        :rx_data => true
+    }
+
+    # Create a new session header message.
+    # @param [String] serial_port_name is the name of the serial port to access.
+    # @param [Hash] options are a hash of options overwriting the default message options.
+    #   Valid keys are those that exist in {DEFAULT_OPTIONS}.
     def initialize(serial_port_name, options = {})
-      default_options = {
-          :version => VERSION,
-          :type_of_data => :payload,
-          :invalids => false,
-          :tx_data => false,
-          :rx_data => true
-      }
+      default_options = DEFAULT_OPTIONS.clone
       @serial_port_name = serial_port_name
       @options = default_options.merge(options)
     end
 
-
+    # Serialize the message to a binary string.
+    # @example initialize a default data channel
+    #   s = TCPSocket.new('localhost', 36962)
+    #   s.write  SessionHeaderMessage.new('/dev/ttyUSB0').serialize
+    #
+    # @return [String] binary data packet into a string.
     def serialize
       # build service access point specifier
       sap = 0
