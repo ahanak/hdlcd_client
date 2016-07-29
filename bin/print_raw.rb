@@ -1,10 +1,11 @@
-$:.push File.join(File.dirname(__FILE__), 'lib')
+$:.push File.join(File.dirname(__FILE__), '../lib')
 
 require 'hdlcd_client'
 
-HdlcdClient.open('/dev/ttyUSB0', 'localhost', 36962) do |dev|
-  locked = false
-  dev.each_packet do |packet|
+port = (ARGV.first or '/dev/ttyUSB0')
+
+HdlcdClient.open(port) do |device|
+  device.each_packet do |packet|
     puts packet
   end
 end
