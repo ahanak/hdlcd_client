@@ -105,15 +105,16 @@ module HdlcdClient
       DataPacket.each(data_connection) {|packet| yield(packet)}
     end
 
-    # This method can be usded to descripbe to control packets being delivered by the HDLCd
-    # via secondary control connection.
+    # This method can be used to subscribe to control packets delivered by the HDLCd
+    # through the secondary control connection.
     # @yield [packet] Passes packages containing control information ({ControlPacket}) to the block as they arrive.
     def each_control_packet
       ControlPacket.each(control_connection(true)) {|packet| yield(packet)}
     end
 
-    # This method passes all packets (data and control) to the block, that arrive
-    # at the data connection. The control connection is not evaluated here.
+    # This method passes all packets (data and control) from the data connection to the block.
+    #
+    # The control connection is not evaluated here.
     # @yield [packet] Passes packages containing control information or data (any subclass of {Packet}) to the block as they arrive.
     def each_packet
       Packet.each(data_connection) {|packet| yield(packet)}
