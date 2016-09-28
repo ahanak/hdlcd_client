@@ -35,7 +35,7 @@ require "socket"
 module HdlcdClient
 
   # The tcp port to connect to if none is given.
-  DEFAULT_PORT = 36962
+  DEFAULT_PORT = 4999
 
   # The host to connect to if none is given.
   DEFAULT_HOST = 'localhost'
